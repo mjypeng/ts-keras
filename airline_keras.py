@@ -1,11 +1,11 @@
 import sys, os
-sys.path.append('..' + os.sep + 'amazon' + os.sep + 'fba_mkd' + os.sep + 'ssm-python')
+sys.path.append('..' + os.sep + 'ssm-python')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import ssm
 
-from keras.layers import Input, Embedding, LSTM, Dense, merge
+from keras.layers import Input, Embedding, SimpleRNN, LSTM, Dense, merge
 from keras.models import Model, Sequential
 from keras.utils.visualize_util import plot
 
@@ -70,10 +70,10 @@ for max_lag in range(1,25):
     #
     np.random.seed(0) # fix random seed for reproducibility
     model  = Sequential()
-    model.add(LSTM(4, input_length=1, input_dim=max_lag))
+    model.add(SimpleRNN(4, input_length=1, input_dim=max_lag, activation='linear'))
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
-    res  = model.fit(trainX, trainY, nb_epoch=100, batch_size=1, verbose=2)
+    res  = model.fit(trainX, trainY, nb_epoch=200, batch_size=1, verbose=2)
     #
     trainPredict[max_lag] = scaler.inverse_transform(model.predict(trainX))
     testPredict[max_lag]  = scaler.inverse_transform(model.predict(testX))
@@ -109,10 +109,10 @@ for max_lag in range(1,25):
     #
     np.random.seed(0) # fix random seed for reproducibility
     model  = Sequential()
-    model.add(LSTM(4, input_length=max_lag, input_dim=1))
+    model.add(SimpleRNN(4, input_length=max_lag, input_dim=1, activation='linear'))
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
-    res  = model.fit(trainX, trainY, nb_epoch=100, batch_size=1, verbose=2)
+    res  = model.fit(trainX, trainY, nb_epoch=200, batch_size=1, verbose=2)
     #
     trainPredict2[max_lag] = scaler.inverse_transform(model.predict(trainX))
     testPredict2[max_lag]  = scaler.inverse_transform(model.predict(testX))
@@ -124,18 +124,23 @@ for max_lag in range(1,25):
 
 plot(model, show_shapes=True, to_file='LSTM2.png')
 
-fig  = plt.figure(figsize=(16,10))
-plt.plot(time,y.squeeze(),'b:o',label='airline')
-plt.plot(time[tr_size:],y_hat[tr_size:],'g-^',label="BSTSM RMSE = %.2f" % RMSE_tt)
-plt.plot(time[tr_size:],testPredict[12],'r:d',label="LSTM 1 RMSE = %.2f" % testScore[11])
-plt.plot(time[tr_size:],testPredict2[12],'r-^',label="LSTM 2 RMSE = %.2f" % testScore2[11])
-plt.legend()
-plt.show()
+for max_lag in range(1,25):
+    fig  = plt.figure(figsize=(16,10))
+    plt.plot(time[tr_size-24:],y.squeeze()[tr_size-24:],'r:o',label='airline')
+    plt.plot(time[tr_size:],y_hat[tr_size:],'g:d',label="BSTSM RMSE = %.2f" % RMSE_tt)
+    plt.plot(time[tr_size:],testPredict[max_lag],'b:s',label="LSTM 1 1-step RMSE = %.2f" % testScore[max_lag-1])
+    plt.plot(time[tr_size:],testPredict_nstep[max_lag],'b-s',label="LSTM 1 n-step RMSE = %.2f" % testScore_nstep[max_lag-1])
+    plt.plot(time[tr_size:],testPredict2[max_lag],'c:^',label="LSTM 2 1-step RMSE = %.2f" % testScore2[max_lag-1])
+    plt.plot(time[tr_size:],testPredict_nstep2[max_lag],'c-^',label="LSTM 2 n-step RMSE = %.2f" % testScore_nstep2[max_lag-1])
+    plt.legend(loc='upper left')
+    plt.savefig("airline_keras_SimpleRNN_maxlag=%02d.png" % max_lag)
+    plt.close()
+    # plt.show()
 
-fig  = plt.figure(figsize=(16,10))
-plt.plot(time,y.squeeze(),'b:o',label='airline')
-plt.plot(time[tr_size:],y_hat[tr_size:],'g-^',label="BSTSM RMSE = %.2f" % RMSE_tt)
-plt.plot(time[tr_size:],testPredict_nstep[12],'r:d',label="LSTM 1 RMSE = %.2f" % testScore_nstep[11])
-plt.plot(time[tr_size:],testPredict_nstep2[12],'r-^',label="LSTM 2 RMSE = %.2f" % testScore_nstep2[11])
-plt.legend()
-plt.show()
+# fig  = plt.figure(figsize=(16,10))
+# plt.plot(time,y.squeeze(),'b:o',label='airline')
+# plt.plot(time[tr_size:],y_hat[tr_size:],'g-^',label="BSTSM RMSE = %.2f" % RMSE_tt)
+# plt.plot(time[tr_size:],testPredict_nstep[12],'r:d',label="LSTM 1 RMSE = %.2f" % testScore_nstep[11])
+# plt.plot(time[tr_size:],testPredict_nstep2[12],'r-^',label="LSTM 2 RMSE = %.2f" % testScore_nstep2[11])
+# plt.legend()
+# plt.show()
