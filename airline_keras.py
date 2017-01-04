@@ -1,9 +1,16 @@
 import sys, os
-sys.path.append('..' + os.sep + 'ssm-python')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+X13_PATH  = '..' + os.sep + 'winx13' + os.sep + 'x13as'
+SSM_PATH  = '..' + os.sep + 'amazon' + os.sep + 'fba_mkd' + os.sep + 'ssm-python'
+
+sys.path.append(SSM_PATH)
 import ssm
+
+from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.x13 import x13_arima_analysis
 
 from keras.layers import Input, Embedding, SimpleRNN, LSTM, Dense, merge
 from keras.models import Model, Sequential
@@ -37,6 +44,18 @@ RMSE_tt = np.sqrt(np.mean((y[:,tr_size:].squeeze()-y_hat[tr_size:])**2))
 # plt.plot(time[tr_size:],y_hat[tr_size:],'r-^')
 # plt.title("Training RMSE = %.2f,  Test RMSE = %.2f" % (RMSE_tr,RMSE_tt))
 # plt.show()
+
+# res  = x13_arima_analysis(data[:tr_size].passengers.astype(float),maxorder=(2,1),maxdiff=(2,1),trading=True,forecast_years=12,retspec=True,x12path=X13_PATH + os.sep + 'x13as.exe',prefer_x13=True)
+# plt.plot(res.observed,'r:')
+# plt.plot(res.seasadj,'b-')
+# plt.plot(res.trend,'b--')
+# plt.show()
+
+# def objfunc(order, y):
+#     res  = ARIMA(y, order).fit()
+#     return res.aic()
+
+exit(0)
 
 #-- Analyze with RNN --#
 
