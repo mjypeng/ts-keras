@@ -38,6 +38,9 @@ alphahat,V = ssm.statesmo(np.hstack([y_tr,[[np.nan]*(n-tr_size)]]),bstsm)[:2]
 y_hat  = ssm.signal(alphahat,bstsm,mcom='all')
 RMSE_tr = np.sqrt(np.mean((y[:,:tr_size].squeeze()-y_hat[:tr_size])**2))
 RMSE_tt = np.sqrt(np.mean((y[:,tr_size:].squeeze()-y_hat[tr_size:])**2))
+a,P    = ssm.kalman(y,bstsm)[:2]
+y_hat_1step = ssm.signal(a,bstsm,mcom='all')
+RMSE_tt_1step = np.sqrt(np.mean((y[:,tr_size:].squeeze()-y_hat_1step[tr_size:-1])**2))
 
 # plt.plot(time,y.squeeze(),'b:o')
 # plt.plot(time[:tr_size],y_hat[:tr_size],'g-^')
@@ -147,7 +150,8 @@ plot(model, show_shapes=True, to_file=MODEL_NAME + '.png')
 for max_lag in range(1,25):
     fig  = plt.figure(figsize=(16,10))
     plt.plot(time[tr_size-24:],y.squeeze()[tr_size-24:],'r:o',label='airline')
-    plt.plot(time[tr_size:],y_hat[tr_size:],'g:d',label="BSTSM RMSE = %.2f" % RMSE_tt)
+    plt.plot(time[tr_size:],y_hat_1step[tr_size:-1],'g:d',label="BSTSM 1-step RMSE = %.2f" % RMSE_tt_1step)
+    plt.plot(time[tr_size:],y_hat[tr_size:],'g-d',label="BSTSM n-step RMSE = %.2f" % RMSE_tt)
     plt.plot(time[tr_size:],testPredict[max_lag],'b:s',label="%s 1-step RMSE = %.2f" % (MODEL_NAME,testScore[max_lag-1]))
     plt.plot(time[tr_size:],testPredict_nstep[max_lag],'b-s',label="%s n-step RMSE = %.2f" % (MODEL_NAME,testScore_nstep[max_lag-1]))
     plt.legend(loc='upper left')
