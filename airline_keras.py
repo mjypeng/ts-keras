@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 X13_PATH  = '..' + os.sep + 'winx13' + os.sep + 'x13as'
-SSM_PATH  = '..' + os.sep + 'amazon' + os.sep + 'fba_mkd' + os.sep + 'ssm-python'
+SSM_PATH  = '..' + os.sep + 'ssm-python' #+ os.sep + 'amazon' + os.sep + 'fba_mkd' 
 
 sys.path.append(SSM_PATH)
 import ssm
@@ -28,7 +28,7 @@ data.set_index('month',inplace=True)
 n       = len(data)
 time    = data.index
 y       = data.passengers[None,:].astype('float32')
-tr_size = int(len(data) * 0.67)
+tr_size = int(np.floor(len(data) * 0.67))
 y_tr    = y[:,:tr_size]
 
 #-- Analyze with Basic Structural Time Series Model --#
@@ -55,13 +55,13 @@ RMSE_tt = np.sqrt(np.mean((y[:,tr_size:].squeeze()-y_hat[tr_size:])**2))
 #     res  = ARIMA(y, order).fit()
 #     return res.aic()
 
-exit(0)
+#-- Analyze with NN --#
 
-#-- Analyze with RNN --#
+MODEL_NAME  = 'LSTM2' #'SimpleRNN1' #'LSTM1' #'MLP' #'SimpleRNN2' #
 
 # normalize the dataset
 scaler  = MinMaxScaler(feature_range=(0,1))
-scaler.fit(data.passengers[:tr_size])
+scaler.fit(data.passengers[:tr_size].astype(float))
 data['scaled'] = scaler.transform(data.passengers)
 for lag in range(1,25):
     data["lag%d" % lag] = np.hstack([np.nan]*lag + [data.scaled[:-lag].values])
@@ -74,36 +74,6 @@ def predict_nstep(model,X):
         y_hat[t] = model.predict(y_hat[t-max_lag:t].T[None,:,:])
     return y_hat[max_lag:]
 
-trainPredict = {}
-testPredict = {}
-testPredict_nstep = {}
-trainScore  = np.zeros(24)
-testScore   = np.zeros(24)
-testScore_nstep  = np.zeros(24)
-for max_lag in range(1,25):
-    col_lag = ["lag%d" % lag for lag in range(1,max_lag+1)]
-    trainX  = data[max_lag:tr_size][col_lag].values[:,None,:]
-    trainY  = data[max_lag:tr_size].scaled
-    testX   = data[tr_size:][col_lag].values[:,None,:]
-    testY   = data[tr_size:].scaled
-    #
-    np.random.seed(0) # fix random seed for reproducibility
-    model  = Sequential()
-    model.add(SimpleRNN(4, input_length=1, input_dim=max_lag, activation='linear'))
-    model.add(Dense(1))
-    model.compile(loss='mean_squared_error', optimizer='adam')
-    res  = model.fit(trainX, trainY, nb_epoch=200, batch_size=1, verbose=2)
-    #
-    trainPredict[max_lag] = scaler.inverse_transform(model.predict(trainX))
-    testPredict[max_lag]  = scaler.inverse_transform(model.predict(testX))
-    testPredict_nstep[max_lag]  = scaler.inverse_transform(predict_nstep(model,testX))
-    #
-    trainScore[max_lag-1] = np.sqrt(np.mean((data[max_lag:tr_size].passengers-trainPredict[max_lag].squeeze())**2))
-    testScore[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict[max_lag].squeeze())**2))
-    testScore_nstep[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict_nstep[max_lag].squeeze())**2))
-
-plot(model, show_shapes=True, to_file='LSTM1.png')
-
 def predict_nstep2(model,X):
     n       = X.shape[0]
     max_lag = X.shape[1]
@@ -112,47 +82,76 @@ def predict_nstep2(model,X):
         y_hat[t] = model.predict(y_hat[t-max_lag:t][None,:,:])
     return y_hat[max_lag:]
 
-trainPredict2 = {}
-testPredict2 = {}
-testPredict_nstep2 = {}
-trainScore2  = np.zeros(24)
-testScore2   = np.zeros(24)
-testScore_nstep2   = np.zeros(24)
+def predict_nstep3(model,X):
+    n       = X.shape[0]
+    max_lag = X.shape[1]
+    y_hat   = np.vstack([X[[0],:].T,[[np.nan]]*n])
+    for t in range(max_lag,max_lag+n):
+        y_hat[t] = model.predict(y_hat[t-max_lag:t].T)
+    return y_hat[max_lag:]
+
+trainPredict = {}
+testPredict = {}
+testPredict_nstep = {}
+trainScore  = np.zeros(24)
+testScore   = np.zeros(24)
+testScore_nstep  = np.zeros(24)
 for max_lag in range(1,25):
     col_lag = ["lag%d" % lag for lag in range(1,max_lag+1)]
-    #
-    trainX  = data[max_lag:tr_size][col_lag].values[:,:,None]
+    trainX  = data[max_lag:tr_size][col_lag].values
     trainY  = data[max_lag:tr_size].scaled
-    testX   = data[tr_size:][col_lag].values[:,:,None]
+    testX   = data[tr_size:][col_lag].values
     testY   = data[tr_size:].scaled
     #
     np.random.seed(0) # fix random seed for reproducibility
     model  = Sequential()
-    model.add(SimpleRNN(4, input_length=max_lag, input_dim=1, activation='linear'))
+    if MODEL_NAME == 'LSTM1':
+        trainX  = data[max_lag:tr_size][col_lag].values[:,None,:]
+        testX   = data[tr_size:][col_lag].values[:,None,:]
+        model.add(LSTM(12, input_length=1, input_dim=max_lag)) #, activation='linear'
+    elif MODEL_NAME == 'LSTM2':
+        trainX  = data[max_lag:tr_size][col_lag].values[:,:,None]
+        testX   = data[tr_size:][col_lag].values[:,:,None]
+        model.add(LSTM(12, input_length=max_lag, input_dim=1))
+    elif MODEL_NAME == 'SimpleRNN1':
+        trainX  = data[max_lag:tr_size][col_lag].values[:,None,:]
+        testX   = data[tr_size:][col_lag].values[:,None,:]
+        model.add(SimpleRNN(12, input_length=1, input_dim=max_lag)) #, activation='linear'
+    elif MODEL_NAME == 'SimpleRNN2':
+        trainX  = data[max_lag:tr_size][col_lag].values[:,:,None]
+        testX   = data[tr_size:][col_lag].values[:,:,None]
+        model.add(SimpleRNN(4, input_length=max_lag, input_dim=1))
+    elif MODEL_NAME == 'MLP':
+        model.add(Dense(12, input_dim=max_lag))
+    model.add(Dense(12))
+    model.add(Dense(12))
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
     res  = model.fit(trainX, trainY, nb_epoch=200, batch_size=1, verbose=2)
     #
-    trainPredict2[max_lag] = scaler.inverse_transform(model.predict(trainX))
-    testPredict2[max_lag]  = scaler.inverse_transform(model.predict(testX))
-    testPredict_nstep2[max_lag]  = scaler.inverse_transform(predict_nstep2(model,testX))
+    trainPredict[max_lag] = scaler.inverse_transform(model.predict(trainX))
+    testPredict[max_lag]  = scaler.inverse_transform(model.predict(testX))
+    if MODEL_NAME in ('LSTM1','SimpleRNN1'):
+        testPredict_nstep[max_lag]  = scaler.inverse_transform(predict_nstep(model,testX))
+    elif MODEL_NAME in ('LSTM2','SimpleRNN2'):
+        testPredict_nstep[max_lag]  = scaler.inverse_transform(predict_nstep2(model,testX))
+    else:
+        testPredict_nstep[max_lag]  = scaler.inverse_transform(predict_nstep3(model,testX))
     #
-    trainScore2[max_lag-1] = np.sqrt(np.mean((data[max_lag:tr_size].passengers-trainPredict2[max_lag].squeeze())**2))
-    testScore2[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict2[max_lag].squeeze())**2))
-    testScore_nstep2[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict_nstep2[max_lag].squeeze())**2))
+    trainScore[max_lag-1] = np.sqrt(np.mean((data[max_lag:tr_size].passengers-trainPredict[max_lag].squeeze())**2))
+    testScore[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict[max_lag].squeeze())**2))
+    testScore_nstep[max_lag-1]  = np.sqrt(np.mean((data[tr_size:].passengers-testPredict_nstep[max_lag].squeeze())**2))
 
-plot(model, show_shapes=True, to_file='LSTM2.png')
+plot(model, show_shapes=True, to_file=MODEL_NAME + '.png')
 
 for max_lag in range(1,25):
     fig  = plt.figure(figsize=(16,10))
     plt.plot(time[tr_size-24:],y.squeeze()[tr_size-24:],'r:o',label='airline')
     plt.plot(time[tr_size:],y_hat[tr_size:],'g:d',label="BSTSM RMSE = %.2f" % RMSE_tt)
-    plt.plot(time[tr_size:],testPredict[max_lag],'b:s',label="LSTM 1 1-step RMSE = %.2f" % testScore[max_lag-1])
-    plt.plot(time[tr_size:],testPredict_nstep[max_lag],'b-s',label="LSTM 1 n-step RMSE = %.2f" % testScore_nstep[max_lag-1])
-    plt.plot(time[tr_size:],testPredict2[max_lag],'c:^',label="LSTM 2 1-step RMSE = %.2f" % testScore2[max_lag-1])
-    plt.plot(time[tr_size:],testPredict_nstep2[max_lag],'c-^',label="LSTM 2 n-step RMSE = %.2f" % testScore_nstep2[max_lag-1])
+    plt.plot(time[tr_size:],testPredict[max_lag],'b:s',label="%s 1-step RMSE = %.2f" % (MODEL_NAME,testScore[max_lag-1]))
+    plt.plot(time[tr_size:],testPredict_nstep[max_lag],'b-s',label="%s n-step RMSE = %.2f" % (MODEL_NAME,testScore_nstep[max_lag-1]))
     plt.legend(loc='upper left')
-    plt.savefig("airline_keras_SimpleRNN_maxlag=%02d.png" % max_lag)
+    plt.savefig("airline_keras_%s_maxlag=%02d.png" % (MODEL_NAME,max_lag))
     plt.close()
     # plt.show()
 
