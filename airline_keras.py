@@ -20,7 +20,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
 
 MODEL_NAME  = sys.argv[1] #'MLP' #'SimpleRNN2' #'LSTM2' #'SimpleRNN1' #'LSTM1' #
-MAX_LAG_RANGE = range(4,25)
+MAX_LAG_RANGE = range(8,25)
 
 #-- Read data --#
 data = pd.read_csv('international-airline-passengers.csv',engine='python',skipfooter=3)
@@ -65,7 +65,7 @@ RMSE_tt_1step = np.sqrt(np.mean((y[:,tr_size:].squeeze()-y_hat_1step[tr_size:-1]
 
 # normalize the dataset
 scaler  = MinMaxScaler(feature_range=(0,1))
-scaler.fit((data.passengers[:tr_size].astype(float)[:,None])) #np.log
+scaler.fit((data.passengers[:tr_size].astype(float))) #np.log
 data['scaled'] = scaler.transform((data.passengers)) #np.log
 for lag in range(1,25):
     data["lag%d" % lag] = np.hstack([np.nan]*lag + [data.scaled[:-lag].values])
@@ -117,6 +117,10 @@ for max_lag in MAX_LAG_RANGE:
         trainX  = data[max_lag:tr_size][col_lag].values[:,:,None]
         testX   = data[tr_size:][col_lag].values[:,:,None]
         model.add(LSTM(12, input_length=max_lag, input_dim=1))
+    elif MODEL_NAME == 'LSTM3':
+        trainX  = data[max_lag:tr_size][col_lag].values[None,:,:]
+        testX   = data[tr_size:][col_lag].values[None,:,:]
+        model.add(LSTM(12, input_length=tr_size-max_lag, input_dim=max_lag, return_sequences=True))
     elif MODEL_NAME == 'SimpleRNN1':
         trainX  = data[max_lag:tr_size][col_lag].values[:,None,:]
         testX   = data[tr_size:][col_lag].values[:,None,:]
@@ -127,9 +131,9 @@ for max_lag in MAX_LAG_RANGE:
         model.add(SimpleRNN(12, input_length=max_lag, input_dim=1))
     elif MODEL_NAME == 'MLP':
         model.add(Dense(12, input_dim=max_lag, activation='relu'))
-    model.add(Dense(12, activation='relu'))
-    model.add(Dense(12, activation='relu'))
-    model.add(Dense(1, activation='linear'))
+    model.add(Dense(12, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
+    model.add(Dense(12, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
+    model.add(Dense(1, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
     model.compile(loss='mean_squared_error', optimizer='adam')
     res  = model.fit(trainX, trainY, nb_epoch=200, batch_size=1, verbose=2)
     #
