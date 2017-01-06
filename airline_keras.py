@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 X13_PATH  = '..' + os.sep + 'winx13' + os.sep + 'x13as'
-SSM_PATH  = '..' + os.sep + 'ssm-python' #+ os.sep + 'amazon' + os.sep + 'fba_mkd' 
+SSM_PATH  = '..' + os.sep + 'amazon' + os.sep + 'fba_mkd' + os.sep + 'ssm-python' #
 
 sys.path.append(SSM_PATH)
 import ssm
@@ -130,7 +130,7 @@ for max_lag in MAX_LAG_RANGE:
         testX   = data[tr_size:][col_lag].values[:,:,None]
         model.add(SimpleRNN(12, input_length=max_lag, input_dim=1))
     elif MODEL_NAME == 'MLP':
-        model.add(Dense(12, input_dim=max_lag, activation='relu'))
+        model.add(Dense(12, input_dim=max_lag, activation='linear'))
     model.add(Dense(12, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
     model.add(Dense(12, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
     model.add(Dense(1, input_shape=(1,tr_size-max_lag,max_lag), activation='linear'))
